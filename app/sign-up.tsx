@@ -35,6 +35,42 @@ const SignUp: React.FC = () => {
   const [agree, setAgree] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  const COLORS = {
+  textMuted: "#999999",
+  error: "#E74C3C",
+  warning: "#F39C12",
+  secondary: "#61D2E9",
+  success: "#2ECC71",
+};
+
+const getPasswordStrength = () => {
+  if (!password) {
+    return { level: 0, text: "", color: COLORS.textMuted };
+  }
+
+  let strength = 0;
+
+  if (password.length >= 8) strength++;
+  if (/[A-Z]/.test(password)) strength++;
+  if (/[0-9]/.test(password)) strength++;
+  if (/[^A-Za-z0-9]/.test(password)) strength++;
+
+  const levels = [
+    { level: 1, text: "Weak", color: COLORS.error },
+    { level: 2, text: "Fair", color: COLORS.warning },
+    { level: 3, text: "Good", color: COLORS.secondary },
+    { level: 4, text: "Strong", color: COLORS.success },
+  ];
+
+  return levels[strength - 1] || {
+    level: 0,
+    text: "",
+    color: COLORS.textMuted,
+  };
+};
+
+const passwordStrength = getPasswordStrength();
+
   const [fontsLoaded] = useFonts({
     InriaSerifBold: require('../assets/Fonts/Inria_Serif/InriaSerif-Bold.ttf'),
     Tienne: require('../assets/Fonts/Tienne/Tienne-Regular.ttf'),
@@ -46,6 +82,17 @@ const SignUp: React.FC = () => {
   const handleRegister = async () => {
     if (!agree) {
       Alert.alert("Agreement Required", "Please agree to the Terms & Conditions.");
+      return;
+    }
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email) {
+      Alert.alert('Email is required');
+      return;
+    } else if (!emailRegex.test(email)) {
+      Alert.alert(
+        "Invalid Email",
+        'Please enter a valid email address');
       return;
     }
 
@@ -97,6 +144,11 @@ const SignUp: React.FC = () => {
   const handleSignIn = () => router.push('../sign-in');
   const handleTermsPress = () =>
     Alert.alert("Terms & Conditions", "Your personal information will be collected and sold.");
+
+
+  const handleGuest = async () => {
+    router.replace("/MainPage");
+  }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -187,6 +239,31 @@ const SignUp: React.FC = () => {
                   </Pressable>
                 </View>
 
+                {password.length > 0 && (
+                  <View style={styles.passwordStrengthContainer}>
+                    <View style={styles.passwordStrengthBar}>
+                      {[1, 2, 3, 4].map((level) => (
+                        <View
+                          key={level}
+                          style={[
+                          styles.passwordStrengthSegment,
+                         {
+                            backgroundColor:
+                            passwordStrength.level >= level
+                            ? passwordStrength.color
+                            : "#E0E0E0",
+                          },
+                        ]}
+                      />
+                    ))}
+                    </View>
+
+                  <Text style={{ color: passwordStrength.color, fontSize: hp(1.6) }}>
+                    {passwordStrength.text}
+                  </Text>
+                  </View>
+                )}
+
                 <View style={styles.passwordContainer}>
                   <TextInput
                     style={styles.textInputPassword}
@@ -231,6 +308,13 @@ const SignUp: React.FC = () => {
                     {loading ? "Registering..." : "Register"}
                   </Text>
                 </Pressable>
+
+                 <Pressable
+                    style={styles.buttonguest}
+                    onPress={handleGuest}
+                 >
+                    <Text style={styles.buttonTextGuest}>Explore as a Guest</Text>
+                  </Pressable>            
 
               </View>
             </View>
@@ -406,6 +490,39 @@ const styles = StyleSheet.create({
     fontFamily: 'Tienne', 
     textDecorationLine: 'underline'
   },
+
+  buttonguest: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: hp(3), 
+    marginBottom: hp(-2.0),
+  },
+
+  buttonTextGuest: {
+    color: '#71A0EF', 
+    fontSize: hp(1.9), 
+    fontFamily: 'Tienne',
+    textDecorationLine: 'underline',
+  },
+
+  passwordStrengthContainer: {
+  width: "85%",
+  marginTop: hp(-1.5),
+  marginBottom: hp(1),
+},
+
+passwordStrengthBar: {
+  flexDirection: "row",
+  gap: 5,
+  height: 5,
+  marginBottom: hp(0.8),
+},
+
+passwordStrengthSegment: {
+  flex: 1,
+  borderRadius: 5,
+},
 });
 
 export default SignUp;

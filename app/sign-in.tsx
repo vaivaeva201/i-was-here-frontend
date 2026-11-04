@@ -67,6 +67,10 @@ const Login: React.FC = () => {
 
   const handleRegister = () => router.push('../sign-up');
 
+  const handleGuest = async () => {
+    router.replace("/MainPage");
+  }
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={styles.main}>
@@ -139,6 +143,13 @@ const Login: React.FC = () => {
                   onPress={handleRegister}
                 >
                   <Text style={styles.buttonTextRegister}>Register</Text>
+                </Pressable>
+
+                <Pressable
+                  style={styles.buttonguest}
+                   onPress={handleGuest}
+                >
+                   <Text style={styles.buttonTextGuest}>Explore as a Guest</Text>
                 </Pressable>
               </View>
             </View>
@@ -300,6 +311,21 @@ const styles = StyleSheet.create({
     fontSize: hp(1.8), 
     fontFamily: 'Tienne' 
   },
+
+  buttonguest: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: hp(3), 
+    marginBottom: hp(-2.0),
+  },
+
+  buttonTextGuest: {
+    color: '#71A0EF', 
+    fontSize: hp(1.9), 
+    fontFamily: 'Tienne',
+    textDecorationLine: 'underline',
+  }
 });
 
 export default Login;

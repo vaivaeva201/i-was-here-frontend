@@ -13,8 +13,6 @@ import {
 import MapView, { Callout, Marker, PROVIDER_GOOGLE } from "react-native-maps";
 
 
-
-
 export default function MainPage() {
   const router = useRouter();
   const [selectedMarker, setSelectedMarker] = useState(0);
@@ -98,7 +96,7 @@ export default function MainPage() {
   return (
     <View style={styles.container}>
       <MapView
-        provider={PROVIDER_GOOGLE}
+        provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
         style={styles.map}
         initialRegion={initialRegion}
         showsUserLocation={true}
