@@ -49,21 +49,17 @@ export default function MainPage() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  // Location
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [placeName, setPlaceName] = useState('Locating...');
 
-  // Posts (kept in memory for now, they reset when the app reloads)
   const [markers, setMarkers] = useState<MarkerData[]>([]);
   const [selectedMarker, setSelectedMarker] = useState<string | null>(null);
 
-  // Create post form
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [postTitle, setPostTitle] = useState('');
   const [postMessage, setPostMessage] = useState('');
 
-  // Ask for permission, read the position once, then look up the city name once
   useEffect(() => {
     let cancelled = false;
 
@@ -127,13 +123,11 @@ export default function MainPage() {
       },
     ]);
 
-    // The form closes when the user taps OK
     Alert.alert('Success', 'Your post has been published.', [
       { text: 'OK', onPress: closeCreatePost },
     ]);
   };
 
-  // Loading screen (also shows the error message if something went wrong)
   if (!location) {
     return (
       <View style={styles.loadingContainer}>
@@ -189,7 +183,6 @@ export default function MainPage() {
         ))}
       </MapView>
 
-      {/* Top bar: location name in the middle, profile button on the right */}
       <View
         style={[styles.header, { paddingTop: Math.max(insets.top - 8, 8) }]}
         pointerEvents="box-none"
@@ -214,7 +207,6 @@ export default function MainPage() {
         </View>
       </View>
 
-      {/* Popup for the selected post */}
       {selected && (
         <View style={styles.popupContainer}>
           <Pressable
@@ -263,10 +255,8 @@ export default function MainPage() {
         </View>
       )}
 
-      {/* The Add button on the nav bar opens the create post form */}
       <BottomNavBar onAddPress={() => setShowCreatePost(true)} />
 
-      {/* Create post form */}
       <Modal
         visible={showCreatePost}
         transparent
@@ -277,7 +267,6 @@ export default function MainPage() {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalContainer}
         >
-          {/* Tapping the dark area closes the form */}
           <Pressable style={styles.modalBackdrop} onPress={closeCreatePost} />
 
           <View style={styles.createPostContainer}>
@@ -437,7 +426,7 @@ const styles = StyleSheet.create({
 
   popupContainer: {
     position: 'absolute',
-    bottom: 120, // sits above the nav bar
+    bottom: 120,
     left: 24,
     right: 24,
   },

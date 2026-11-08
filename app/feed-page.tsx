@@ -1,20 +1,38 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   View,
   StyleSheet,
   Dimensions,
   ScrollView,
   Text,
+  TextInput,
   Pressable,
-  Image,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 
 import SimpleLineIcons from '@expo/vector-icons/SimpleLineIcons';
 import Octicons from '@expo/vector-icons/Octicons';
 import { Ionicons } from '@expo/vector-icons';
+
+import BottomNavBar from './nav-bar';
+
+const COLORS = {
+  background: '#252424',
+  surface: '#2B2B2B',
+  glass: 'rgba(0,0,0,0.6)',
+  border: '#5E5E5E',
+  accent: '#61D2E9',
+  accentDark: '#8663FC',
+  onAccent: '#FFFFFF',
+  textPrimary: '#FFFFFF',
+  textSecondary: '#C9C9C9',
+  textMuted: '#999999',
+};
 
 const { width, height } = Dimensions.get('window');
 const wp = (percent: number) => (width * percent) / 100;
@@ -29,34 +47,18 @@ type Post = {
   liked: boolean;
 };
 
+const MOCK_POSTS: Post[] = [
+  { id: 1, username: 'User1', message: 'This is a message from User1', likes: 12, comments: 3, liked: false },
+  { id: 2, username: 'User2', message: 'This is a message from User2', likes: 45, comments: 8, liked: false },
+  { id: 3, username: 'User3', message: 'This is a message from User3', likes: 7, comments: 1, liked: false },
+];
+
 export default function Feed() {
   const router = useRouter();
-  const [locationName, setLocationName] = useState('Unknown');
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [posts, setPosts] = useState<Post[]>(MOCK_POSTS);
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      const locations = ['New York', 'London', 'Paris', 'Tokyo'];
-      const newLocation = locations[Math.floor(Math.random() * locations.length)];
-      setLocationName(newLocation);
-
-      const examplePosts = Array.from(
-        { length: Math.floor(Math.random() * 5) + 1 },
-        (_, i) => ({
-          id: i,
-          username: `User${i + 1}`,
-          message: `This is a message from User${i + 1} at ${newLocation}`,
-          likes: Math.floor(Math.random() * 100),
-          comments: Math.floor(Math.random() * 20),
-          liked: false,
-        })
-      );
-
-      setPosts(examplePosts);
-    }, 5000);
-
-    return () => clearInterval(timer);
-  }, []);
+  const [showCreatePost, setShowCreatePost] = useState(false);
+  const [postMessage, setPostMessage] = useState('');
 
   const toggleLike = (id: number) => {
     setPosts((prev) =>
@@ -70,12 +72,34 @@ export default function Feed() {
     router.push(`/comments`);
   };
 
+  const closeCreatePost = () => {
+    setShowCreatePost(false);
+    setPostMessage('');
+  };
+
+  const handleCreatePost = () => {
+    const message = postMessage.trim();
+    if (!message) return;
+
+    const newPost: Post = {
+      id: Date.now(),
+      username: 'You',
+      message,
+      likes: 0,
+      comments: 0,
+      liked: false,
+    };
+
+    setPosts((prev) => [newPost, ...prev]);
+    closeCreatePost();
+  };
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={styles.main}>
 
         <View style={styles.locationBar}>
-          <Text style={styles.locationText}>{locationName}</Text>
+          <Text style={styles.locationText}>Nearby</Text>
         </View>
 
         <ScrollView
@@ -86,7 +110,7 @@ export default function Feed() {
             <View key={post.id} style={styles.feedItem}>
 
               <View style={styles.userRow}>
-                <Ionicons name="person-circle-outline" size={wp(11)} color="white"  opacity='0.7'/>
+                <Ionicons name="person-circle-outline" size={wp(11)} color="rgba(255,255,255,0.7)" />
                 <Text style={styles.username}>{post.username}</Text>
               </View>
 
@@ -113,32 +137,58 @@ export default function Feed() {
           ))}
         </ScrollView>
 
-        <View style={styles.bottomBar}>
 
-          <Pressable style={styles.bottomButton} onPress={() => router.push('/MainPage')}>
-            <Image
-              source={require('../assets/images/logo-iwh.png')}
-              style={styles.mainButtonImage}
-              resizeMode="contain"
-            />
-          </Pressable>
+        <BottomNavBar onAddPress={() => setShowCreatePost(true)} />
 
-          <LinearGradient
-            colors={['#8663FC', '#61D2E9']}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 0.5, y: 0 }}
-            style={styles.addButtonGradient}
+        <Modal
+          visible={showCreatePost}
+          transparent
+          animationType="slide"
+          onRequestClose={closeCreatePost}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalContainer}
           >
-            <Pressable style={styles.addButton} onPress={() => router.push('/MainPage')}>
-              <Ionicons name="add" size={hp(4)} color="white" />
-            </Pressable>
-          </LinearGradient>
+            <Pressable style={styles.modalBackdrop} onPress={closeCreatePost} />
 
-          <Pressable style={styles.bottomButton} onPress={() => router.push('/MainPage')}>
-            <Ionicons name="person-outline" size={hp(4)} color="white" />
-          </Pressable>
+            <View style={styles.sheet}>
+              <View style={styles.sheetHeader}>
+                <Text style={styles.sheetTitle}>Create Post</Text>
+                <Pressable onPress={closeCreatePost} hitSlop={10}>
+                  <Ionicons name="close" size={26} color="white" />
+                </Pressable>
+              </View>
 
-        </View>
+              <TextInput
+                style={styles.messageInput}
+                placeholder="What's on your mind?"
+                placeholderTextColor="#999"
+                value={postMessage}
+                onChangeText={setPostMessage}
+                multiline
+                maxLength={500}
+                textAlignVertical="top"
+              />
+
+              <Pressable
+                style={[styles.submitButton, !postMessage.trim() && styles.submitButtonDisabled]}
+                onPress={handleCreatePost}
+                disabled={!postMessage.trim()}
+              >
+                <LinearGradient
+                   colors={[COLORS.accent, COLORS.accentDark]}
+                   start={{ x: 0, y: 0 }}
+                   end={{ x: 1, y: 1 }}
+                   style={styles.submitButtonGradient}
+                 >
+                  <Ionicons name="paper-plane" size={20} color={COLORS.onAccent} />
+                  <Text style={styles.submitButtonText}>Post</Text>
+                </LinearGradient>
+              </Pressable>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
       </View>
     </GestureHandlerRootView>
   );
@@ -214,40 +264,73 @@ const styles = StyleSheet.create({
     marginLeft: wp(1),
   },
 
-  bottomBar: {
-    position: 'absolute',
-    bottom: hp(2),
-    width: '100%',
+
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  sheet: {
+    padding: 24,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    backgroundColor: '#2B2B2B',
+  },
+  sheetHeader: {
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 16,
   },
-
-  bottomButton: {
-    marginHorizontal: wp(10),
-    justifyContent: 'center',
+  sheetTitle: {
+    color: 'white',
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  messageInput: {
+    minHeight: 120,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#5E5E5E',
+    backgroundColor: '#252424',
+    color: 'white',
+    fontSize: 16,
+  },
+ submitButton: {
+    marginTop: 16,
+    borderRadius: 14,
+    overflow: 'hidden',
+    shadowColor: COLORS.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+    submitButtonGradient: {
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-
-  mainButtonImage: {
-    width: wp(15),
-    height: wp(15),
-    marginLeft: wp(-7)
-  },
-
-  addButtonGradient: {
-    width: wp(14),
-    height: wp(14),
-    borderRadius: wp(7),
     justifyContent: 'center',
-    alignItems: 'center',
-    marginHorizontal: wp(10),
+    paddingVertical: 16,
+    gap: 8,
   },
-
-  addButton: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
+  submitButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.onAccent,
+    letterSpacing: 0.3,
+  },
+  submitButtonDisabled: {
+    opacity: 0.5,
+  },
+  submitText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });
