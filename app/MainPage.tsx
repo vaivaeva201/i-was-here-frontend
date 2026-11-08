@@ -1,176 +1,344 @@
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import MapView, { Callout, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import {
+  Alert,
+  Dimensions,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import BottomNavBar from './nav-bar';
 
-const MARKERS = [
-  {
-    id: 1,
-    coordinate: { latitude: 37.78825, longitude: -122.4324 },
-    title: 'Location 1',
-    description: 'This is location 1',
-  },
-  {
-    id: 2,
-    coordinate: { latitude: 37.78925, longitude: -122.4334 },
-    title: 'Location 2',
-    description: 'This is location 2',
-  },
-];
+const COLORS = {
+  background: '#252424',
+  surface: '#2B2B2B',
+  glass: 'rgba(0,0,0,0.6)',
+  border: '#5E5E5E',
+  accent: '#61D2E9',
+  accentDark: '#8663FC',
+  onAccent: '#FFFFFF',
+  textPrimary: '#FFFFFF',
+  textSecondary: '#C9C9C9',
+  textMuted: '#999999',
+};
 
-const formatPlace = (place?: Location.LocationGeocodedAddress) =>
-  place?.city ?? place?.district ?? place?.subregion ?? place?.region ?? 'Unknown location';
+const { height } = Dimensions.get('window');
+
+type MarkerData = {
+  id: string;
+  coordinate: { latitude: number; longitude: number };
+  title: string;
+  description: string;
+  author: string;
+  authorUuid?: string;
+  timestamp: string;
+};
 
 export default function MainPage() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
+  // Location
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [placeName, setPlaceName] = useState('Locating...');
 
+  // Posts (kept in memory for now, they reset when the app reloads)
+  const [markers, setMarkers] = useState<MarkerData[]>([]);
+  const [selectedMarker, setSelectedMarker] = useState<string | null>(null);
+
+  // Create post form
+  const [showCreatePost, setShowCreatePost] = useState(false);
+  const [postTitle, setPostTitle] = useState('');
+  const [postMessage, setPostMessage] = useState('');
+
+  // Ask for permission, read the position once, then look up the city name once
   useEffect(() => {
-    let subscription: Location.LocationSubscription | null = null;
     let cancelled = false;
 
     (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (cancelled) return;
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          setErrorMsg('Location permission was denied. Enable it in your settings to see nearby posts.');
+          return;
+        }
 
-      if (status !== 'granted') {
-        setErrorMsg('Location permission was denied. Enable it in your settings to see the map.');
-        setIsLoading(false);
-        return;
-      }
-
-      const initial = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      if (cancelled) return;
-      setLocation(initial);
-      setIsLoading(false);
-
-      const sub = await Location.watchPositionAsync(
-        {
+        const current = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced,
-          timeInterval: 5000,
-          distanceInterval: 10,
-        },
-        setLocation
-      );
+        });
+        if (cancelled) return;
+        setLocation(current);
 
-      if (cancelled) sub.remove();
-      else subscription = sub;
+        try {
+          const [place] = await Location.reverseGeocodeAsync({
+            latitude: current.coords.latitude,
+            longitude: current.coords.longitude,
+          });
+          if (!cancelled) setPlaceName(place?.city ?? 'Unknown location');
+        } catch {
+          if (!cancelled) setPlaceName('Unknown location');
+        }
+      } catch (error) {
+        console.error('Location error:', error);
+        if (!cancelled) setErrorMsg('Could not get your location.');
+      }
     })();
 
     return () => {
       cancelled = true;
-      subscription?.remove();
     };
   }, []);
 
+  const closeCreatePost = () => {
+    setShowCreatePost(false);
+    setPostTitle('');
+    setPostMessage('');
+  };
 
-  const geoKey = location
-    ? `${location.coords.latitude.toFixed(2)},${location.coords.longitude.toFixed(2)}`
-    : null;
+  const handleCreatePost = () => {
+    const title = postTitle.trim();
+    const message = postMessage.trim();
+    if (!location || !title || !message) return;
 
-  useEffect(() => {
-    if (!geoKey) return;
-    const [latitude, longitude] = geoKey.split(',').map(Number);
-    let cancelled = false;
+    setMarkers((prev) => [
+      ...prev,
+      {
+        id: `local-${Date.now()}`,
+        coordinate: {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        },
+        title,
+        description: placeName,
+        author: 'You',
+        timestamp: 'just now',
+      },
+    ]);
 
-    Location.reverseGeocodeAsync({ latitude, longitude })
-      .then(([place]) => {
-        if (!cancelled) setPlaceName(formatPlace(place));
-      })
-      .catch(() => {
-        if (!cancelled) setPlaceName('Unknown location');
-      });
+    // The form closes when the user taps OK
+    Alert.alert('Success', 'Your post has been published.', [
+      { text: 'OK', onPress: closeCreatePost },
+    ]);
+  };
 
-    return () => {
-      cancelled = true;
-    };
-  }, [geoKey]);
-
-  if (isLoading) {
+  // Loading screen (also shows the error message if something went wrong)
+  if (!location) {
     return (
-      <View style={styles.center}>
-        <Text>Loading...</Text>
+      <View style={styles.loadingContainer}>
+        <View style={styles.loadingContent}>
+          <Text style={styles.loadingText}>{errorMsg ?? 'Finding your location...'}</Text>
+        </View>
       </View>
     );
   }
 
-  if (errorMsg || !location) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.errorText}>{errorMsg ?? 'Could not get your location.'}</Text>
-      </View>
-    );
-  }
-
-  const initialRegion = {
+  const region = {
     latitude: location.coords.latitude,
     longitude: location.coords.longitude,
-    latitudeDelta: 0.01,
-    longitudeDelta: 0.01,
+    latitudeDelta: 0.004,
+    longitudeDelta: 0.004,
   };
+
+  const selected = markers.find((m) => m.id === selectedMarker) ?? null;
+  const canPost = postTitle.trim().length > 0 && postMessage.trim().length > 0;
 
   return (
     <View style={styles.container}>
       <MapView
         provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-        style={StyleSheet.absoluteFill}
-        initialRegion={initialRegion}
-        showsUserLocation
-        showsMyLocationButton
+        userInterfaceStyle="dark"
+        style={styles.map}
+        initialRegion={region}
+        showsUserLocation={false}
+        showsMyLocationButton={false}
+        showsCompass={false}
+        onPress={() => setSelectedMarker(null)}
       >
-        {MARKERS.map((marker) => (
-          <Marker key={marker.id} coordinate={marker.coordinate}>
-            <View style={styles.markerContainer}>
-              <View style={styles.marker} />
-            </View>
-            <Callout style={styles.callout}>
-              <View>
-                <Text style={styles.calloutTitle}>{marker.title}</Text>
-                <Text style={styles.calloutDescription}>{marker.description}</Text>
-                <TouchableOpacity
-                  style={styles.calloutButton}
-                  onPress={() => router.push('/sign-in')}
-                >
-                  <Text style={styles.calloutButtonText}>View Details</Text>
-                </TouchableOpacity>
-              </View>
-            </Callout>
-          </Marker>
+        <Marker
+          coordinate={{
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+          }}
+          anchor={{ x: 0.5, y: 0.5 }}
+        >
+          <View style={styles.userLocationMarker}>
+            <View style={styles.userLocationDot} />
+          </View>
+        </Marker>
+
+        {markers.map((marker) => (
+          <Marker
+            key={marker.id}
+            coordinate={marker.coordinate}
+            pinColor={selectedMarker === marker.id ? COLORS.accent : COLORS.accentDark}
+            onPress={() => setSelectedMarker(selectedMarker === marker.id ? null : marker.id)}
+            stopPropagation
+          />
         ))}
       </MapView>
 
-      {/* Top: current location name */}
-      <View style={[styles.topContainer, { paddingTop: insets.top - 8 }]} pointerEvents="box-none">
-        <View style={styles.locationPill} pointerEvents="none">
-          <Ionicons name="location-sharp" size={18} color="white" />
-          <Text style={styles.locationText} numberOfLines={1}>
-            {placeName}
-          </Text>
-        </View>
+      {/* Top bar: location name in the middle, profile button on the right */}
+      <View
+        style={[styles.header, { paddingTop: Math.max(insets.top - 8, 8) }]}
+        pointerEvents="box-none"
+      >
+        <View style={styles.headerContent} pointerEvents="box-none">
+          <View style={styles.headerSpacer} />
 
-        <TouchableOpacity
-          style={[styles.profileButton, { top: insets.top - 8 }]}
-          onPress={() => router.push('/sign-in')}
-          accessibilityLabel="Profile"
-        >
-          <Ionicons name="person" size={20} color="white" />
-        </TouchableOpacity>
+          <View style={styles.locationPill} pointerEvents="none">
+            <Ionicons name="location" size={20} color={COLORS.accent} />
+            <Text style={styles.locationText} numberOfLines={1}>
+              {placeName}
+            </Text>
+          </View>
+
+          <Pressable
+            style={styles.headerButton}
+            onPress={() => router.push('/sign-in')}
+            accessibilityLabel="Profile"
+          >
+            <Ionicons name="person-outline" size={28} color={COLORS.textPrimary} />
+          </Pressable>
+        </View>
       </View>
 
-      {/* Bottom: navigation bar */}
-      <BottomNavBar />
+      {/* Popup for the selected post */}
+      {selected && (
+        <View style={styles.popupContainer}>
+          <Pressable
+            style={styles.postPopup}
+            onPress={() =>
+              router.push({ pathname: '/comments', params: { postId: selected.id } })
+            }
+          >
+            <View style={styles.popupHeader}>
+              <View style={styles.popupLocation}>
+                <Ionicons name="location" size={14} color={COLORS.accent} />
+                <Text style={styles.popupLocationText}>{selected.description}</Text>
+              </View>
+              <Pressable
+                style={styles.popupCloseButton}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  setSelectedMarker(null);
+                }}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="close-circle" size={24} color={COLORS.textMuted} />
+              </Pressable>
+            </View>
+
+            <Text style={styles.popupDescription}>{selected.title}</Text>
+
+            <View style={styles.popupFooter}>
+              <Pressable
+                onPress={() => {
+                  if (selected.authorUuid) {
+                    router.push({ pathname: '/sign-in', params: { uuid: selected.authorUuid } });
+                  }
+                }}
+              >
+                <Text style={styles.popupAuthor}>
+                  by {selected.author} • {selected.timestamp}
+                </Text>
+              </Pressable>
+              <View style={styles.popupAction}>
+                <Text style={styles.popupActionText}>View Post</Text>
+                <Ionicons name="chevron-forward" size={14} color={COLORS.accent} />
+              </View>
+            </View>
+          </Pressable>
+        </View>
+      )}
+
+      {/* The Add button on the nav bar opens the create post form */}
+      <BottomNavBar onAddPress={() => setShowCreatePost(true)} />
+
+      {/* Create post form */}
+      <Modal
+        visible={showCreatePost}
+        transparent
+        animationType="slide"
+        onRequestClose={closeCreatePost}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalContainer}
+        >
+          {/* Tapping the dark area closes the form */}
+          <Pressable style={styles.modalBackdrop} onPress={closeCreatePost} />
+
+          <View style={styles.createPostContainer}>
+            <View style={styles.modalHandle} />
+
+            <View style={styles.createPostHeader}>
+              <Text style={styles.createPostTitle}>Create Post</Text>
+              <Pressable style={styles.closeButton} onPress={closeCreatePost}>
+                <Ionicons name="close" size={24} color={COLORS.textPrimary} />
+              </Pressable>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Title</Text>
+              <TextInput
+                style={styles.titleInput}
+                placeholder="Give your post a title..."
+                placeholderTextColor={COLORS.textMuted}
+                value={postTitle}
+                onChangeText={setPostTitle}
+                maxLength={100}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Message</Text>
+              <TextInput
+                style={styles.messageInput}
+                placeholder="What's happening here?"
+                placeholderTextColor={COLORS.textMuted}
+                value={postMessage}
+                onChangeText={setPostMessage}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+                maxLength={500}
+              />
+            </View>
+
+            <Pressable
+              style={({ pressed }) => [
+                styles.submitButton,
+                pressed && styles.submitButtonPressed,
+                !canPost && styles.submitButtonDisabled,
+              ]}
+              onPress={handleCreatePost}
+              disabled={!canPost}
+            >
+              <LinearGradient
+                colors={[COLORS.accent, COLORS.accentDark]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.submitButtonGradient}
+              >
+                <Ionicons name="paper-plane" size={20} color={COLORS.onAccent} />
+                <Text style={styles.submitButtonText}>Post</Text>
+              </LinearGradient>
+            </Pressable>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -178,98 +346,270 @@ export default function MainPage() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: COLORS.background,
   },
-  center: {
+  map: {
+    ...StyleSheet.absoluteFill,
+  },
+
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  loadingContent: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
   },
-  errorText: {
-    textAlign: 'center',
+  loadingText: {
     fontSize: 16,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
   },
 
-  topContainer: {
+  header: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  headerContent: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  headerSpacer: {
+    width: 44,
+  },
+  headerButton: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: COLORS.glass,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   locationPill: {
+    flexShrink: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: COLORS.glass,
+    borderRadius: 20,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  locationText: {
+    flexShrink: 1,
+    fontSize: 14,
+    color: COLORS.textPrimary,
+  },
+
+  userLocationMarker: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(66, 133, 244, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  userLocationDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#4285F4',
+    borderWidth: 2,
+    borderColor: '#fff',
+    shadowColor: '#4285F4',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+
+  popupContainer: {
+    position: 'absolute',
+    bottom: 120, // sits above the nav bar
+    left: 24,
+    right: 24,
+  },
+  postPopup: {
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  popupHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  popupLocation: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    maxWidth: '70%',
-    paddingHorizontal: 16,
-    height: 50,
-    borderRadius: 100,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    flex: 1,
+    marginRight: 8,
   },
-  locationText: {
-    color: 'white',
+  popupCloseButton: {
+    padding: 4,
+    marginRight: -4,
+    marginTop: -4,
+  },
+  popupLocationText: {
     fontSize: 16,
-    fontWeight: '600',
-    flexShrink: 1,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
   },
-  profileButton: {
-    position: 'absolute',
-    right: 16,
-    width: 60,
-    height: 60,
-    borderRadius: 50,
+  popupDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: COLORS.textSecondary,
+    marginBottom: 8,
+  },
+  popupFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    marginTop: 0
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  popupAuthor: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+  },
+  popupAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  popupActionText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.accent,
   },
 
-  markerContainer: {
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  createPostContainer: {
+    backgroundColor: COLORS.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 24,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    maxHeight: height * 0.85,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: COLORS.border,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  createPostHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  createPostTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+    letterSpacing: -0.5,
+  },
+  closeButton: {
     width: 40,
     height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  inputGroup: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  titleInput: {
+    backgroundColor: COLORS.background,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    fontSize: 16,
+    color: COLORS.textPrimary,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  messageInput: {
+    backgroundColor: COLORS.background,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    fontSize: 16,
+    color: COLORS.textPrimary,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    minHeight: 120,
+  },
+  submitButton: {
+    marginTop: 16,
+    borderRadius: 14,
+    overflow: 'hidden',
+    shadowColor: COLORS.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  submitButtonGradient: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 16,
+    gap: 8,
   },
-  marker: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#FF0000',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-
-  callout: {
-    width: 200,
-    padding: 10,
-    borderRadius: 8,
-    backgroundColor: '#FFFFFF',
-  },
-  calloutTitle: {
+  submitButtonText: {
     fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 5,
+    fontWeight: '700',
+    color: COLORS.onAccent,
+    letterSpacing: 0.3,
   },
-  calloutDescription: {
-    fontSize: 14,
-    color: '#666666',
-    marginBottom: 10,
+  submitButtonPressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.98 }],
   },
-  calloutButton: {
-    backgroundColor: '#0066FF',
-    padding: 8,
-    borderRadius: 4,
-    alignItems: 'center',
-  },
-  calloutButtonText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
+  submitButtonDisabled: {
+    opacity: 0.5,
   },
 });
