@@ -143,7 +143,7 @@ const passwordStrength = getPasswordStrength();
 
   const handleSignIn = () => router.push('../sign-in');
   const handleTermsPress = () =>
-    Alert.alert("Terms & Conditions", "Your personal information will be collected and sold.");
+    Alert.alert("Terms & Conditions", "“By registering you agree to our Terms of Service (placeholder).");
 
 
   const handleGuest = async () => {

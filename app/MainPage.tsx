@@ -1,114 +1,137 @@
-import { AntDesign } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-import { useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
-import {
-  Platform,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
-} from "react-native";
-import MapView, { Callout, Marker, PROVIDER_GOOGLE } from "react-native-maps";
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import MapView, { Callout, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import BottomNavBar from './nav-bar';
+
+const MARKERS = [
+  {
+    id: 1,
+    coordinate: { latitude: 37.78825, longitude: -122.4324 },
+    title: 'Location 1',
+    description: 'This is location 1',
+  },
+  {
+    id: 2,
+    coordinate: { latitude: 37.78925, longitude: -122.4334 },
+    title: 'Location 2',
+    description: 'This is location 2',
+  },
+];
+
+const formatPlace = (place?: Location.LocationGeocodedAddress) =>
+  place?.city ?? place?.district ?? place?.subregion ?? place?.region ?? 'Unknown location';
 
 export default function MainPage() {
   const router = useRouter();
-  const [selectedMarker, setSelectedMarker] = useState(0);
-  const [location, setLocation] = useState<any>(null);
-  const [errorMsg, setErrorMsg] = useState<any>(null);
+  const insets = useSafeAreaInsets();
+
+  const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [placeName, setPlaceName] = useState('Locating...');
 
   useEffect(() => {
+    let subscription: Location.LocationSubscription | null = null;
+    let cancelled = false;
+
     (async () => {
-      // Request location permission
-      let { status } = await Location.requestForegroundPermissionsAsync();
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (cancelled) return;
+
       if (status !== 'granted') {
-        setErrorMsg('Permission to access location was denied');
-        alert('Permission denied Please enable location services to use this feature');
+        setErrorMsg('Location permission was denied. Enable it in your settings to see the map.');
         setIsLoading(false);
         return;
       }
 
-      let initialLocation = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High
+      const initial = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
       });
-      setLocation(initialLocation);
+      if (cancelled) return;
+      setLocation(initial);
       setIsLoading(false);
 
-      // Start watching position
-      let locationSubscription = await Location.watchPositionAsync(
+      const sub = await Location.watchPositionAsync(
         {
-          accuracy: Location.Accuracy.High,
+          accuracy: Location.Accuracy.Balanced,
           timeInterval: 5000,
           distanceInterval: 10,
         },
-        (newLocation: any) => {
-          setLocation(newLocation);
-        }
+        setLocation
       );
 
-      // Cleanup subscription on unmount
-      return () => {
-        if (locationSubscription) {
-          locationSubscription.remove();
-        }
-      };
+      if (cancelled) sub.remove();
+      else subscription = sub;
     })();
+
+    return () => {
+      cancelled = true;
+      subscription?.remove();
+    };
   }, []);
 
-  if (isLoading || !location) {
+
+  const geoKey = location
+    ? `${location.coords.latitude.toFixed(2)},${location.coords.longitude.toFixed(2)}`
+    : null;
+
+  useEffect(() => {
+    if (!geoKey) return;
+    const [latitude, longitude] = geoKey.split(',').map(Number);
+    let cancelled = false;
+
+    Location.reverseGeocodeAsync({ latitude, longitude })
+      .then(([place]) => {
+        if (!cancelled) setPlaceName(formatPlace(place));
+      })
+      .catch(() => {
+        if (!cancelled) setPlaceName('Unknown location');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [geoKey]);
+
+  if (isLoading) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+      <View style={styles.center}>
         <Text>Loading...</Text>
       </View>
     );
   }
 
-  const initialRegion = location ? {
-    latitude: location?.coords?.latitude || 37.78825,
-    longitude: location?.coords?.longitude || -122.4324,
-    latitudeDelta: 0.01,
-    longitudeDelta: 0.01,
-  } : {
-    latitude: 37.78825,
-    longitude: -122.4324,
+  if (errorMsg || !location) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.errorText}>{errorMsg ?? 'Could not get your location.'}</Text>
+      </View>
+    );
+  }
+
+  const initialRegion = {
+    latitude: location.coords.latitude,
+    longitude: location.coords.longitude,
     latitudeDelta: 0.01,
     longitudeDelta: 0.01,
   };
 
-  const markers = [
-    {
-      id: 1,
-      coordinate: { latitude: 37.78825, longitude: -122.4324 },
-      title: "Location 1",
-      description: "This is location 1",
-    },
-    {
-      id: 2,
-      coordinate: { latitude: 37.78925, longitude: -122.4334 },
-      title: "Location 2",
-      description: "This is location 2",
-    },
-  ];
-
   return (
     <View style={styles.container}>
       <MapView
-        provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
-        style={styles.map}
+        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+        style={StyleSheet.absoluteFill}
         initialRegion={initialRegion}
-        showsUserLocation={true}
-        showsMyLocationButton={true}
-        followsUserLocation={true}
+        showsUserLocation
+        showsMyLocationButton
       >
-        {markers.map((marker) => (
-          <Marker
-            key={marker.id}
-            coordinate={marker.coordinate}
-            onPress={() => setSelectedMarker(marker.id)}
-          >
+        {MARKERS.map((marker) => (
+          <Marker key={marker.id} coordinate={marker.coordinate}>
             <View style={styles.markerContainer}>
               <View style={styles.marker} />
             </View>
@@ -116,9 +139,9 @@ export default function MainPage() {
               <View>
                 <Text style={styles.calloutTitle}>{marker.title}</Text>
                 <Text style={styles.calloutDescription}>{marker.description}</Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.calloutButton}
-                  onPress={() => router.push("/sign-in")}
+                  onPress={() => router.push('/sign-in')}
                 >
                   <Text style={styles.calloutButtonText}>View Details</Text>
                 </TouchableOpacity>
@@ -126,86 +149,80 @@ export default function MainPage() {
             </Callout>
           </Marker>
         ))}
-        <Marker coordinate={{ latitude: 37.78825, longitude: -122.4324 }} />
       </MapView>
 
-      <View style={styles.topButtonContainer}>
+      {/* Top: current location name */}
+      <View style={[styles.topContainer, { paddingTop: insets.top - 8 }]} pointerEvents="box-none">
+        <View style={styles.locationPill} pointerEvents="none">
+          <Ionicons name="location-sharp" size={18} color="white" />
+          <Text style={styles.locationText} numberOfLines={1}>
+            {placeName}
+          </Text>
+        </View>
+
         <TouchableOpacity
-          style={styles.topButton}
-          onPress={() => router.push("/sign-in")}
+          style={[styles.profileButton, { top: insets.top - 8 }]}
+          onPress={() => router.push('/sign-in')}
+          accessibilityLabel="Profile"
         >
-          <AntDesign name="user" size={24} color="white" />
+          <Ionicons name="person" size={20} color="white" />
         </TouchableOpacity>
       </View>
 
-      <TouchableOpacity
-        style={styles.feedButton}
-        onPress={() => router.push("/feed-page")}
-      >
-        <AntDesign name="home" size={26} color="white" />
-      </TouchableOpacity>
-
-      <View style={styles.bottomButtonContainer}>
-        <LinearGradient
-          colors={['#8663FC', '#61D2E9']}
-          start={{ x: 0, y: 0.5}}
-          end={{ x: 0.5, y: 0 }}
-          style={styles.bottomButtonGradient}
-        >
-          <TouchableOpacity
-            style={styles.bottomButton}
-            onPress={() => router.push("/sign-in")}
-          >
-            <AntDesign name="plus" size={24} color="white" />
-          </TouchableOpacity>
-        </LinearGradient>
-      </View>
+      {/* Bottom: navigation bar */}
+      <BottomNavBar />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: "#fff",
-    paddingTop: Platform.OS === "android" ? 0 : undefined,
-  },
   container: {
     flex: 1,
   },
-  map: {
-    ...StyleSheet.absoluteFill,
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  errorText: {
+    textAlign: 'center',
+    fontSize: 16,
   },
 
-
-  topButton: {
-    position: "absolute",
-    top: 20,
-    height: 48,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    borderRadius: 100,
-    justifyContent: "center",
-    alignItems: "center",
-    width: 'auto',
-    paddingHorizontal: 15,
-    marginRight: 15,
-  },
-  topButtonContainer: {
+  topContainer: {
     position: 'absolute',
-    width: '100%',
-    alignItems: 'flex-end',
+    top: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
   },
-
-  feedButton: {
-    position: 'absolute',
-    bottom: 50,
-    left: 40,  
-    backgroundColor: "rgba(0,0,0,0.6)",
-    width: 50,
+  locationPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    maxWidth: '70%',
+    paddingHorizontal: 16,
     height: 50,
-    borderRadius: 25,
-    justifyContent: "center",
-    alignItems: "center",
+    borderRadius: 100,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  locationText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
+  profileButton: {
+    position: 'absolute',
+    right: 16,
+    width: 60,
+    height: 60,
+    borderRadius: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    marginTop: 0
   },
 
   markerContainer: {
@@ -254,30 +271,5 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '600',
-  },
-
-  bottomButtonContainer: {
-    position: 'absolute',
-    bottom: 50,
-    width: '100%',
-    alignItems: 'center',
-  },
-  bottomButtonGradient: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  bottomButton: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
 });
