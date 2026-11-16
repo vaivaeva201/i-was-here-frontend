@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -11,9 +12,9 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { useRouter } from 'expo-router';
 
 import SimpleLineIcons from '@expo/vector-icons/SimpleLineIcons';
 import Octicons from '@expo/vector-icons/Octicons';
@@ -28,6 +29,7 @@ const COLORS = {
   border: '#5E5E5E',
   accent: '#61D2E9',
   accentDark: '#8663FC',
+  like: '#FF5A6E',
   onAccent: '#FFFFFF',
   textPrimary: '#FFFFFF',
   textSecondary: '#C9C9C9',
@@ -39,28 +41,72 @@ const wp = (percent: number) => (width * percent) / 100;
 const hp = (percent: number) => (height * percent) / 100;
 
 type Post = {
-  id: number;
+  id: string;
   username: string;
   message: string;
   likes: number;
   comments: number;
   liked: boolean;
+  createdAt: number; 
+  distanceM: number;
 };
 
+const minutesAgo = (m: number) => Date.now() - m * 60 * 1000;
+
 const MOCK_POSTS: Post[] = [
-  { id: 1, username: 'User1', message: 'This is a message from User1', likes: 12, comments: 3, liked: false },
-  { id: 2, username: 'User2', message: 'This is a message from User2', likes: 45, comments: 8, liked: false },
-  { id: 3, username: 'User3', message: 'This is a message from User3', likes: 7, comments: 1, liked: false },
+  {
+    id: '1',
+    username: 'Ieva',
+    message: 'The old town square is surprisingly quiet this morning. Great time for coffee.',
+    likes: 12,
+    comments: 3,
+    liked: false,
+    createdAt: minutesAgo(25),
+    distanceM: 300,
+  },
+  {
+    id: '2',
+    username: 'Mantas',
+    message: 'Found a tiny bookshop behind the cathedral. Worth the detour!',
+    likes: 45,
+    comments: 8,
+    liked: false,
+    createdAt: minutesAgo(130),
+    distanceM: 850,
+  },
+  {
+    id: '3',
+    username: 'Gabija',
+    message: 'Street musicians by the river tonight, if anyone is nearby.',
+    likes: 7,
+    comments: 1,
+    liked: false,
+    createdAt: minutesAgo(60 * 6),
+    distanceM: 1400,
+  },
 ];
 
+const formatMeta = (createdAt: number, distanceM: number) => {
+  const minutes = Math.max(1, Math.floor((Date.now() - createdAt) / 60000));
+  let time: string;
+  if (minutes < 60) time = `${minutes}m ago`;
+  else if (minutes < 1440) time = `${Math.floor(minutes / 60)}h ago`;
+  else time = `${Math.floor(minutes / 1440)}d ago`;
+
+  if (distanceM === 0) return time;
+
+  const dist =
+    distanceM < 1000 ? `${distanceM} m away` : `${(distanceM / 1000).toFixed(1)} km away`;
+  return `${time}  \u00B7  ${dist}`;
+};
+
 export default function Feed() {
-  const router = useRouter();
   const [posts, setPosts] = useState<Post[]>(MOCK_POSTS);
 
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [postMessage, setPostMessage] = useState('');
 
-  const toggleLike = (id: number) => {
+  const toggleLike = (id: string) => {
     setPosts((prev) =>
       prev.map((p) =>
         p.id === id ? { ...p, liked: !p.liked, likes: p.liked ? p.likes - 1 : p.likes + 1 } : p
@@ -68,8 +114,8 @@ export default function Feed() {
     );
   };
 
-  const openComments = (postId: number) => {
-    router.push(`/comments`);
+  const openComments = (_postId: string) => {
+    Alert.alert('Comments', 'Comments are coming soon.');
   };
 
   const closeCreatePost = () => {
@@ -82,12 +128,14 @@ export default function Feed() {
     if (!message) return;
 
     const newPost: Post = {
-      id: Date.now(),
+      id: String(Date.now()),
       username: 'You',
       message,
       likes: 0,
       comments: 0,
       liked: false,
+      createdAt: Date.now(),
+      distanceM: 0,
     };
 
     setPosts((prev) => [newPost, ...prev]);
@@ -97,8 +145,8 @@ export default function Feed() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={styles.main}>
-
         <View style={styles.locationBar}>
+          <Ionicons name="location-sharp" size={20} color={COLORS.accent} />
           <Text style={styles.locationText}>Nearby</Text>
         </View>
 
@@ -106,37 +154,62 @@ export default function Feed() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {posts.length === 0 && (
+            <View style={styles.emptyState}>
+              <Ionicons name="chatbubbles-outline" size={56} color={COLORS.textMuted} />
+              <Text style={styles.emptyTitle}>No posts nearby yet</Text>
+              <Text style={styles.emptyText}>Tap + to share something with people around you.</Text>
+            </View>
+          )}
+
           {posts.map((post) => (
             <View key={post.id} style={styles.feedItem}>
-
               <View style={styles.userRow}>
-                <Ionicons name="person-circle-outline" size={wp(11)} color="rgba(255,255,255,0.7)" />
-                <Text style={styles.username}>{post.username}</Text>
+                <Ionicons
+                  name="person-circle-outline"
+                  size={wp(11)}
+                  color="rgba(255,255,255,0.7)"
+                />
+                <View>
+                  <Text style={styles.username}>{post.username}</Text>
+                  <Text style={styles.meta}>{formatMeta(post.createdAt, post.distanceM)}</Text>
+                </View>
               </View>
 
               <Text style={styles.message}>{post.message}</Text>
 
               <View style={styles.statsRow}>
-
-                <Pressable style={styles.statsItem} onPress={() => toggleLike(post.id)}>
+                <Pressable
+                  style={styles.statsItem}
+                  onPress={() => toggleLike(post.id)}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel={post.liked ? 'Unlike post' : 'Like post'}
+                >
                   {post.liked ? (
-                    <Octicons name="heart-fill" size={hp(3)} color="white" />
+                    <Octicons name="heart-fill" size={hp(3)} color={COLORS.like} />
                   ) : (
                     <SimpleLineIcons name="heart" size={hp(3)} color="white" />
                   )}
-                  <Text style={styles.statsText}>{post.likes}</Text>
+                  <Text style={[styles.statsText, post.liked && styles.statsTextLiked]}>
+                    {post.likes}
+                  </Text>
                 </Pressable>
 
-                <Pressable style={styles.statsItem} onPress={() => openComments(post.id)}>
+                <Pressable
+                  style={styles.statsItem}
+                  onPress={() => openComments(post.id)}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open comments"
+                >
                   <Ionicons name="chatbubble-outline" size={hp(3)} color="white" />
                   <Text style={styles.statsText}>{post.comments}</Text>
                 </Pressable>
-
               </View>
             </View>
           ))}
         </ScrollView>
-
 
         <BottomNavBar onAddPress={() => setShowCreatePost(true)} />
 
@@ -163,7 +236,7 @@ export default function Feed() {
               <TextInput
                 style={styles.messageInput}
                 placeholder="What's on your mind?"
-                placeholderTextColor="#999"
+                placeholderTextColor={COLORS.textMuted}
                 value={postMessage}
                 onChangeText={setPostMessage}
                 multiline
@@ -177,11 +250,11 @@ export default function Feed() {
                 disabled={!postMessage.trim()}
               >
                 <LinearGradient
-                   colors={[COLORS.accent, COLORS.accentDark]}
-                   start={{ x: 0, y: 0 }}
-                   end={{ x: 1, y: 1 }}
-                   style={styles.submitButtonGradient}
-                 >
+                  colors={[COLORS.accent, COLORS.accentDark]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.submitButtonGradient}
+                >
                   <Ionicons name="paper-plane" size={20} color={COLORS.onAccent} />
                   <Text style={styles.submitButtonText}>Post</Text>
                 </LinearGradient>
@@ -195,14 +268,16 @@ export default function Feed() {
 }
 
 const styles = StyleSheet.create({
-  main: { flex: 1, backgroundColor: '#252424' },
+  main: { flex: 1, backgroundColor: COLORS.background },
 
   locationBar: {
-    height: hp(7),
+    height: 56,
+    flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    borderBottomWidth: hp(0.2),
-    borderBottomColor: '#5E5E5E',
+    gap: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
 
   locationText: {
@@ -221,7 +296,7 @@ const styles = StyleSheet.create({
 
   feedItem: {
     width: wp(90),
-    backgroundColor: '#2B2B2B',
+    backgroundColor: COLORS.surface,
     borderRadius: wp(3),
     marginVertical: hp(1.5),
     padding: wp(3),
@@ -238,6 +313,12 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: hp(2),
     fontWeight: '600',
+  },
+
+  meta: {
+    color: COLORS.textMuted,
+    fontSize: hp(1.6),
+    marginTop: 2,
   },
 
   message: {
@@ -264,45 +345,74 @@ const styles = StyleSheet.create({
     marginLeft: wp(1),
   },
 
+  statsTextLiked: {
+    color: COLORS.like,
+  },
+
+  emptyState: {
+    alignItems: 'center',
+    paddingTop: hp(12),
+    paddingHorizontal: 32,
+    gap: 8,
+  },
+
+  emptyTitle: {
+    color: COLORS.textPrimary,
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 8,
+  },
+
+  emptyText: {
+    color: COLORS.textMuted,
+    fontSize: 15,
+    textAlign: 'center',
+  },
 
   modalContainer: {
     flex: 1,
     justifyContent: 'flex-end',
   },
+
   modalBackdrop: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: COLORS.glass,
   },
+
   sheet: {
     padding: 24,
     paddingBottom: Platform.OS === 'ios' ? 40 : 24,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    backgroundColor: '#2B2B2B',
+    backgroundColor: COLORS.surface,
   },
+
   sheetHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
   },
+
   sheetTitle: {
     color: 'white',
     fontSize: 22,
     fontWeight: '700',
   },
+
   messageInput: {
     minHeight: 120,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#5E5E5E',
-    backgroundColor: '#252424',
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.background,
     color: 'white',
     fontSize: 16,
   },
- submitButton: {
+
+  submitButton: {
     marginTop: 16,
     borderRadius: 14,
     overflow: 'hidden',
@@ -312,25 +422,23 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
-    submitButtonGradient: {
+
+  submitButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
     gap: 8,
   },
+
   submitButtonText: {
     fontSize: 16,
     fontWeight: '700',
     color: COLORS.onAccent,
     letterSpacing: 0.3,
   },
+
   submitButtonDisabled: {
     opacity: 0.5,
-  },
-  submitText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '700',
   },
 });
