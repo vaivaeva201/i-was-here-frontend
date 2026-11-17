@@ -18,13 +18,12 @@ It allows users to mark and share places they have visited through an interactiv
 * **User Authentication:** Login and registration screens.
 * **Interactive Map:** View and explore places through a map interface.
 * **Location Markers:** Mark and view visited locations.
-* **Feed:** Browse posts shared by other users.
-* **Posts:** View individual posts and their associated locations.
+* **Feed:** Browse posts shared by other users (in this version only the sample posts are available).
 
 
 ## My Contribution
 
-I contriputed to the frontend development as part of a university group project, collaborating with other team members.
+I contributed to the frontend development as part of a university group project, collaborating with other team members.
 My contributions include:
 * Implementing login and registration interfaces.
 * Developing the map screen and location marker functionality.
@@ -57,7 +56,7 @@ The original backend is not available in this repository, so features requiring 
 * npm
 * Expo Go or an Android/iOS development environment
 
-### Instalation
+### Installation
 
 1. Clone repository
 
