@@ -1,50 +1,81 @@
-# Welcome to your Expo app 👋
+# I Was Here - Frontend
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+## Overview
 
-## Get started
+I Was Here is a mobile application developed as part of a university group project. 
+It allows users to mark and share places they have visited through an interactive map. 
 
-1. Install dependencies
+## Technologies Used
 
-   ```bash
-   npm install
+* **Language:** TypeScript
+* **Framework:** React Native
+* **Platform:** Expo
+* **Navigation:** Expo Router
+* **Version Control:** Git and GitHub
+
+## Features
+
+* **User Authentication:** Login and registration screens.
+* **Interactive Map:** View and explore places through a map interface.
+* **Location Markers:** Mark and view visited locations.
+* **Feed:** Browse posts shared by other users.
+* **Posts:** View individual posts and their associated locations.
+
+
+## My Contribution
+
+I contriputed to the frontend development as part of a university group project, collaborating with other team members.
+My contributions include:
+* Implementing login and registration interfaces.
+* Developing the map screen and location marker functionality.
+* Creating the feed page.
+* Implementing application navigation.
+* Integrating frontend components with backend services.
+
+## Preview
+
+<div style="display: flex; overflow-x: auto; gap: 10px;">
+  <img src="assets/images/login.jpg" width="200">
+  <img src="assets/images/register.jpg" width="200">
+  <img src="assets/images/map.jpg" width="200">
+  <img src="assets/images/location_marker.jpg" width="200">
+  <img src="assets/images/feed_page.jpg" width="200">
+  <img src="assets/images/post.jpg" width="200">
+</div>
+
+## Project Status
+
+This repository contains my individual frontend implementation from the original university group project.
+
+The original backend is not available in this repository, so features requiring backend connectivity, such as authentication and data persistence, may not work as intended.
+
+## How To View
+
+### Prerequisites
+
+* Node.js
+* npm
+* Expo Go or an Android/iOS development environment
+
+### Instalation
+
+1. Clone repository
+
+  ```bash
+   git clone https://github.com/vaivaeva201/i-was-here-frontend.git
    ```
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
+2. Navigate to the project directory:
+ ```bash
+    cd i-was-here-frontend
+```
+3. Install dependencies:
 ```bash
-npm run reset-project
+    npm install
+```
+4.  Start the development server:
+```bash
+    npx expo start
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Follow the Expo CLI instructions to open the application on a supported device or emulator.
